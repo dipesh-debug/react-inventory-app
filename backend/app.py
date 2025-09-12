@@ -12,7 +12,9 @@ CORS(app) # This is a simpler, more global configuration that is often more reli
 UPLOAD_FOLDER = 'uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
-DB_URL = "postgresql://inventory_user:inventory_password@localhost:5433/inventory_db" # Use port 5433 for Docker
+# Read the database URL from the environment variable set on Render.
+# Fall back to a local Docker URL for development if the variable is not set.
+DB_URL = os.environ.get('DB_URL', "postgresql://inventory_user:inventory_password@localhost:5433/inventory_db")
 
 # --- Helper Functions ---
 def allowed_file(filename):
