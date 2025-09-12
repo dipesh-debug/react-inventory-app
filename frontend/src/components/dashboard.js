@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 // The URL for your Python backend API
 const API_URL = process.env.NODE_ENV === 'production' ? 'https://react-inventory-app-xqv1.onrender.com/api' : 'http://localhost:5001/api';
@@ -211,11 +211,11 @@ function Dashboard() {
                             {searchResults.length > 0 && (
                                 <div className="list-group position-absolute w-100" style={{ zIndex: 1000 }}>
                                     {searchResults.map(item => (
-                                        <a key={item.item_code} href={`/item/${item.item_code}`} className="list-group-item list-group-item-action">
+                                        <Link key={item.item_code} to={`/item/${item.item_code}`} className="list-group-item list-group-item-action">
                                             <div className="fw-bold">{item.item_code}</div>
                                             <div>{item.item_name}</div>
                                             <div className="small text-muted">{item.description}</div>
-                                        </a>
+                                        </Link>
                                     ))}
                                 </div>
                             )}
