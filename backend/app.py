@@ -28,24 +28,34 @@ def get_db_connection():
 
 def init_db():
     """Initializes the database and creates the table if it doesn't exist."""
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute('''
-        CREATE TABLE IF NOT EXISTS items (
-            id SERIAL PRIMARY KEY,
-            item_code TEXT NOT NULL UNIQUE,
-            item_name TEXT NOT NULL,
-            rack_no TEXT NOT NULL,
-            quantity INTEGER NOT NULL DEFAULT 0,
-            image_filename TEXT,
-            description TEXT,
-            created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (CURRENT_TIMESTAMP)
-        );
-    ''')
-    conn.commit()
-    cur.close()
-    conn.close()
-    print("Database initialized successfully.")
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS items (
+                id SERIAL PRIMARY KEY,
+                item_code TEXT NOT NULL UNIQUE,
+                item_name TEXT NOT NULL,
+                rack_no TEXT NOT NULL,
+                quantity INTEGER NOT NULL DEFAULT 0,
+                image_filename TEXT,
+                description TEXT,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (CURRENT_TIMESTAMP)
+            );
+        ''')
+        conn.commit()
+        cur.close()
+        conn.close()
+        print("Database initialized successfully.")
+    except psycopg2.OperationalError as e:
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        print("!!! DATABASE CONNECTION FAILED ON STARTUP.                             !!!")
+        print("!!! This is likely a network issue (e.g., IPv6) between Render and your DB. !!!")
+        print("!!! If using Supabase, try using the Connection Pooler URL (port 6543).  !!!")
+        print(f"!!! Error: {e}")
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        # Re-raise the exception to ensure the app still fails to start
+        raise e
 
 # --- API Routes ---
 
