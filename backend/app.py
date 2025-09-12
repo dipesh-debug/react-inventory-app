@@ -266,10 +266,11 @@ def serve_upload(filename):
 # Initialize the database when the application starts
 init_db()
 
+# Create upload folder if it doesn't exist when the application starts
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+
 # --- Main Execution ---
 if __name__ == '__main__':
-    # Create upload folder if it doesn't exist
-    if not os.path.exists(UPLOAD_FOLDER):
-        os.makedirs(UPLOAD_FOLDER)
     # Note: debug=True is not for production
     app.run(host='0.0.0.0', port=5001, debug=True)

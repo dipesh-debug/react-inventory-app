@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Route, Routes, Link } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
 
+import Dashboard from './components/Dashboard';
 import ItemDetails from './components/ItemDetails';
 
 function App() {
@@ -15,6 +16,7 @@ function App() {
           </Link>
         </h1>
         <Routes>
+          <Route path="/" element={<Dashboard />} />
           <Route path="/item/:itemCode" element={<ItemDetails />} />
         </Routes>
       </div>
