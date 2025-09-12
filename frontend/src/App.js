@@ -15,7 +15,6 @@ function App() {
           </Link>
         </h1>
         <Routes>
-          <Route path="/" element={<Dashboard />} />
           <Route path="/item/:itemCode" element={<ItemDetails />} />
         </Routes>
       </div>
