@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 
 // When you deploy, replace the production URL with your actual backend URL.
 // Consider free-tier services like Supabase, ElephantSQL, or Railway for a permanent database.
-const API_URL = process.env.NODE_ENV === 'production' ? 'https://your-backend-api.onrender.com/api' : 'http://localhost:5001/api'; // Using Render for the backend
+const API_URL = process.env.NODE_ENV === 'production' ? 'https://react-inventory-app-xqv1.onrender.com/api' : 'http://localhost:5001/api'; // Using Render for the backend
 
 function ItemDetails() {
     const { itemCode } = useParams();
