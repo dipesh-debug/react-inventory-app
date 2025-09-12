@@ -8,7 +8,7 @@ from flask_cors import CORS
 # --- Configuration ---
 app = Flask(__name__)
 # Allow requests from your React development server (e.g., http://localhost:3000)
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+CORS(app) # This is a simpler, more global configuration that is often more reliable.
 UPLOAD_FOLDER = 'uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
