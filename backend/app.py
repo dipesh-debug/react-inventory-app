@@ -263,11 +263,13 @@ def serve_upload(filename):
     """Serves an uploaded file."""
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
+# Initialize the database when the application starts
+init_db()
+
 # --- Main Execution ---
 if __name__ == '__main__':
     # Create upload folder if it doesn't exist
     if not os.path.exists(UPLOAD_FOLDER):
         os.makedirs(UPLOAD_FOLDER)
-    init_db()
     # Note: debug=True is not for production
     app.run(host='0.0.0.0', port=5001, debug=True)
