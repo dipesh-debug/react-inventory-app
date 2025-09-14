@@ -1,25 +1,55 @@
 import os
 import psycopg2
 import json
+import re
+import uuid
 from psycopg2.extras import RealDictCursor
-from flask import Flask, request, jsonify, abort, send_from_directory
+from flask import Flask, request, jsonify, abort
 from flask_cors import CORS
+from werkzeug.utils import secure_filename
+import cloudinary
+import cloudinary.uploader
+import cloudinary.api
 
 # --- Configuration ---
 app = Flask(__name__)
-# Allow requests from your React development server (e.g., http://localhost:3000)
-CORS(app) # This is a simpler, more global configuration that is often more reliable.
-UPLOAD_FOLDER = 'uploads'
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+CORS(app)
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
-# Read the database URL from the environment variable set on Render.
-# Fall back to a local Docker URL for development if the variable is not set.
 DB_URL = os.environ.get('DB_URL', "postgresql://inventory_user:inventory_password@localhost:5433/inventory_db")
+# Cloudinary is configured automatically by the CLOUDINARY_URL environment variable.
 
 # --- Helper Functions ---
 def allowed_file(filename):
     """Checks if the file extension is allowed."""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def upload_to_cloudinary(file):
+    """Uploads a file to Cloudinary and returns its secure URL."""
+    if not file or file.filename == '' or not allowed_file(file.filename):
+        return None
+    
+    # The upload method returns a dictionary with upload details
+    upload_result = cloudinary.uploader.upload(file)
+    # We need the secure_url to display the image
+    return upload_result.get('secure_url')
+
+def delete_from_cloudinary(secure_url):
+    """Deletes a file from Cloudinary given its secure URL."""
+    if not secure_url:
+        return
+    try:
+        # Extract public_id from URL.
+        # e.g. from "https://res.cloudinary.com/demo/image/upload/v1606312345/folder/sample.jpg"
+        # we need to get "folder/sample"
+        match = re.search(r'\/v\d+\/(.+?)(?:\.\w+)?$', secure_url)
+        if not match:
+            print(f"Could not extract public_id from Cloudinary URL: {secure_url}")
+            return
+        
+        public_id = match.group(1)
+        cloudinary.uploader.destroy(public_id)
+    except Exception as e:
+        print(f"Error deleting from Cloudinary: {e}") # Log error but don't fail the request
 
 def get_db_connection():
     """Creates a connection to the PostgreSQL database."""
@@ -133,27 +163,30 @@ def add_item():
     except json.JSONDecodeError:
         return jsonify({'error': 'Invalid JSON in data part'}), 400
 
-    image_file = request.files.get('image_file')
-    image_filename = None
-
-    if image_file and allowed_file(image_file.filename):
-        # Create a secure filename
-        image_filename = f"{data.get('item_code', 'new_item')}_{image_file.filename}".replace(" ", "_")
-        image_path = os.path.join(app.config['UPLOAD_FOLDER'], image_filename)
-        image_file.save(image_path)
+    image_url = None
+    if 'image_file' in request.files:
+        image_file = request.files['image_file']
+        try:
+            image_url = upload_to_cloudinary(image_file)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
 
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
+        # The `image_filename` column now stores the full Cloudinary URL or NULL
         cur.execute(
             'INSERT INTO items (item_code, item_name, rack_no, quantity, description, image_filename) VALUES (%s, %s, %s, %s, %s, %s) RETURNING *',
-            (data['item_code'], data['item_name'], data['rack_no'], data['quantity'], data['description'], image_filename)
+            (data['item_code'], data['item_name'], data['rack_no'], data['quantity'], data['description'], image_url)
         )
         new_item = cur.fetchone()
         conn.commit()
     except psycopg2.IntegrityError:
         conn.rollback()
+        # If DB insert fails, delete the orphaned image from Cloudinary
+        if image_url:
+            delete_from_cloudinary(image_url)
         return jsonify({'error': f"Item code '{data['item_code']}' already exists."}), 409 # Conflict
     finally:
         cur.close()
@@ -185,17 +218,29 @@ def update_item(item_code):
     except json.JSONDecodeError:
         return jsonify({'error': 'Invalid JSON in data part'}), 400
 
-    image_file = request.files.get('image_file')
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Handle image update
-    if image_file and allowed_file(image_file.filename):
-        image_filename = f"{item_code}_{image_file.filename}".replace(" ", "_")
-        image_path = os.path.join(app.config['UPLOAD_FOLDER'], image_filename)
-        image_file.save(image_path)
-        # Update the image filename in the database
-        cur.execute('UPDATE items SET image_filename = %s WHERE item_code = %s', (image_filename, item_code))
+    if 'image_file' in request.files:
+        image_file = request.files.get('image_file')
+        try:
+            # Get old image URL to delete it after new one is uploaded
+            cur.execute('SELECT image_filename FROM items WHERE item_code = %s', (item_code,))
+            old_item = cur.fetchone()
+            old_image_url = old_item['image_filename'] if old_item else None
+
+            # Upload new image and get its URL from Cloudinary
+            new_image_url = upload_to_cloudinary(image_file)
+
+            # Update DB with the new URL
+            cur.execute('UPDATE items SET image_filename = %s WHERE item_code = %s', (new_image_url, item_code))
+
+            # If upload and DB update were successful, delete the old image from Cloudinary
+            if old_image_url:
+                delete_from_cloudinary(old_image_url)
+        except Exception as e:
+            conn.rollback()
+            return jsonify({'error': str(e)}), 500
 
     # Update other fields
     cur.execute(
@@ -215,27 +260,29 @@ def update_item(item_code):
 def delete_item(item_code):
     """Endpoint to delete an item."""
     conn = get_db_connection()
-    # First, get the image filename to delete the file
-    cur = conn.cursor()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    # First, get the image URL to delete the file from Cloudinary later
     cur.execute('SELECT image_filename FROM items WHERE item_code = %s', (item_code,))
     item = cur.fetchone()
+    image_url_to_delete = item['image_filename'] if item and item['image_filename'] else None
 
     # Now, delete the record from the database
-    cur = conn.cursor()
     cur.execute('DELETE FROM items WHERE item_code = %s RETURNING id', (item_code,))
     deleted_item = cur.fetchone()
     conn.commit()
-    cur.close()
-    conn.close()
+
     if deleted_item is None:
+        cur.close()
+        conn.close()
         abort(404)
 
-    # If deletion was successful, delete the associated image file
-    if item and item[0]:
-        image_path = os.path.join(app.config['UPLOAD_FOLDER'], item[0])
-        if os.path.exists(image_path):
-            os.remove(image_path)
+    # If DB deletion was successful, delete the associated image file from Cloudinary
+    if image_url_to_delete:
+        delete_from_cloudinary(image_url_to_delete)
 
+    cur.close()
+    conn.close()
     return jsonify({'message': f"Item '{item_code}' deleted successfully."}), 200
 
 @app.route('/api/search', methods=['GET'])
@@ -268,17 +315,8 @@ def get_item_names():
     conn.close()
     return jsonify(names)
 
-@app.route('/api/uploads/<path:filename>')
-def serve_upload(filename):
-    """Serves an uploaded file."""
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
-
 # Initialize the database when the application starts
 init_db()
-
-# Create upload folder if it doesn't exist when the application starts
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
 
 # --- Main Execution ---
 if __name__ == '__main__':

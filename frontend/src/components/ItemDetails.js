@@ -90,7 +90,7 @@ function ItemDetails() {
                 <h2>Edit Item: {item.item_name}</h2>
                 {item.image_filename && (
                     <div className="text-center mb-3">
-                        <img src={`${API_URL}/uploads/${item.image_filename}`} alt={item.item_name} style={{ maxWidth: '200px', maxHeight: '200px', objectFit: 'cover', borderRadius: '0.25rem' }} />
+                        <img src={item.image_filename} alt={item.item_name} style={{ maxWidth: '200px', maxHeight: '200px', objectFit: 'cover', borderRadius: '0.25rem' }} />
                     </div>
                 )}
                 <form onSubmit={handleUpdate}>

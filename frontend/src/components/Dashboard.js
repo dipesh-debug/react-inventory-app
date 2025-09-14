@@ -234,7 +234,7 @@ function Dashboard() {
                                         <tr key={item.id} onClick={() => navigate(`/item/${item.item_code}`)}>
                                             <td>
                                                 {item.image_filename ? (
-                                                    <img src={`${API_URL}/uploads/${item.image_filename}`} alt={item.item_name} style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '0.25rem' }} />
+                                                    <img src={item.image_filename} alt={item.item_name} style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '0.25rem' }} />
                                                 ) : (
                                                     <div style={{ width: '60px', height: '60px', backgroundColor: '#f0f0f0', borderRadius: '0.25rem' }} />
                                                 )}
