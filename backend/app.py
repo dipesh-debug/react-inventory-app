@@ -13,7 +13,11 @@ load_dotenv()
 
 # --- Configuration ---
 app = Flask(__name__)
-CORS(app)
+# Explicitly configure CORS for production and development origins
+CORS(app, resources={r"/api/*": {"origins": [
+    "http://localhost:3000", # Local React dev server
+    "https://xyra1.netlify.app" # Your deployed frontend
+]}})
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 DB_URL = os.environ.get('DB_URL', "postgresql://inventory_user:inventory_password@localhost:5433/inventory_db")
 
@@ -129,6 +133,13 @@ def init_db():
         print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
         # Re-raise the exception to ensure the app still fails to start
         raise e
+    
+    # Get filter parameters from URL
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    filter_item_name = request.args.get('name', '')
+    filter_date = request.args.get('date', '')
+    tz_offset_minutes_str = request.args.get('tzOffset')
 
 # --- API Routes ---
 
@@ -137,13 +148,6 @@ def get_items():
     """Endpoint to get a paginated and filtered list of items for the main table."""
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
-    
-    # Get filter parameters from URL
-    page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 10, type=int)
-    filter_item_name = request.args.get('name', '')
-    filter_date = request.args.get('date', '')
-    tz_offset_minutes_str = request.args.get('tzOffset')
 
     # Build query dynamically to handle filters
     query_params = []
@@ -367,8 +371,14 @@ def get_item_names():
     conn.close()
     return jsonify(names)
 
-# Initialize the database when the application starts
-init_db()
+# --- CLI Commands for DB Management ---
+@app.cli.command("init-db")
+def init_db_command():
+    """Creates the database tables."""
+    init_db()
+    print("Initialized the database.")
+
+# We no longer call init_db() automatically on startup.
 
 # --- Main Execution ---
 if __name__ == '__main__':

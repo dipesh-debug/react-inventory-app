@@ -31,6 +31,10 @@ function Dashboard() {
     });
     const [imageFile, setImageFile] = useState(null);
 
+    // Form submission status
+    const [formError, setFormError] = useState(null);
+    const [formSuccess, setFormSuccess] = useState(null);
+
     // Fetch items from the API
     const fetchItems = useCallback(async (page, name, date) => {
         try {
@@ -94,6 +98,9 @@ function Dashboard() {
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
+        // Clear form messages when user starts typing
+        setFormError(null);
+        setFormSuccess(null);
         setNewItem(prev => ({ ...prev, [name]: value }));
     };
 
@@ -106,6 +113,9 @@ function Dashboard() {
         }
 
         try {
+            setFormError(null);
+            setFormSuccess(null);
+
             const response = await fetch(`${API_URL}/items`, {
                 method: 'POST',
                 body: formData, // Let the browser set the Content-Type for FormData
@@ -113,6 +123,7 @@ function Dashboard() {
 
             if (!response.ok) {
                 const errorData = await response.json();
+                // This will catch the "Item code '...' already exists." error
                 throw new Error(errorData.error || 'Failed to add item');
             }
 
@@ -130,10 +141,11 @@ function Dashboard() {
             if (document.getElementById('image_file')) {
                 document.getElementById('image_file').value = '';
             }
-            alert('Item added successfully!');
+            setFormSuccess('Item added successfully!');
 
         } catch (err) {
-            alert(`Error: ${err.message}`);
+            // Display the error message from the backend in the form
+            setFormError(err.message);
         }
     };
 
@@ -159,6 +171,8 @@ function Dashboard() {
                 <div className="card p-4">
                     <h2>Add New Item</h2>
                     <form onSubmit={handleSubmit}>
+                        {formError && <div className="alert alert-danger" role="alert">{formError}</div>}
+                        {formSuccess && <div className="alert alert-success" role="alert">{formSuccess}</div>}
                         <div className="mb-3"><label htmlFor="item_code" className="form-label">Item Code</label><input type="text" className="form-control" id="item_code" name="item_code" value={newItem.item_code} onChange={handleInputChange} required /></div>
                         <div className="mb-3"><label htmlFor="item_name" className="form-label">Item Name</label><input type="text" className="form-control" id="item_name" name="item_name" value={newItem.item_name} onChange={handleInputChange} required /></div>
                         <div className="mb-3"><label htmlFor="rack_no" className="form-label">Rack Number</label><input type="text" className="form-control" id="rack_no" name="rack_no" value={newItem.rack_no} onChange={handleInputChange} required /></div>
@@ -233,7 +247,7 @@ function Dashboard() {
                                     inventoryData.items.map(item => (
                                         <tr key={item.id} onClick={() => navigate(`/item/${item.item_code}`)}>
                                             <td>
-                                                {item.image_filename ? (
+                                                {item.image_filename && item.image_filename.startsWith('http') ? (
                                                     <img src={item.image_filename} alt={item.item_name} style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '0.25rem' }} />
                                                 ) : (
                                                     <div style={{ width: '60px', height: '60px', backgroundColor: '#f0f0f0', borderRadius: '0.25rem' }} />

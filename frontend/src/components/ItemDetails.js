@@ -88,11 +88,11 @@ function ItemDetails() {
             </nav>
             <div className="card p-4" style={{ maxWidth: '600px', margin: 'auto' }}>
                 <h2>Edit Item: {item.item_name}</h2>
-                {item.image_filename && (
+                {item.image_filename && item.image_filename.startsWith('http') ? (
                     <div className="text-center mb-3">
                         <img src={item.image_filename} alt={item.item_name} style={{ maxWidth: '200px', maxHeight: '200px', objectFit: 'cover', borderRadius: '0.25rem' }} />
                     </div>
-                )}
+                ) : null}
                 <form onSubmit={handleUpdate}>
                     <div className="mb-3"><label className="form-label">Item Code</label><input type="text" className="form-control" value={item.item_code} readOnly disabled /></div>
                     <div className="mb-3"><label htmlFor="item_name" className="form-label">Item Name</label><input type="text" className="form-control" id="item_name" name="item_name" value={item.item_name} onChange={handleInputChange} required /></div>
