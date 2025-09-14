@@ -26,10 +26,17 @@ try:
     # The import itself triggers the configuration check based on the environment variable.
     if not os.environ.get('CLOUDINARY_URL'):
         raise ValueError("CLOUDINARY_URL environment variable not set.")
-except (ImportError, ValueError) as e:
+except ImportError:
     print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-    print("!!! FATAL: CLOUDINARY CONFIGURATION ERROR                            !!!")
-    print(f"!!! Error: {e}")
+    print("!!! FATAL: CLOUDINARY LIBRARY NOT FOUND                            !!!")
+    print("!!! Please ensure 'cloudinary' is in your requirements.txt file.     !!!")
+    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    import sys
+    sys.exit(1)
+except ValueError as e:
+    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    print("!!! FATAL: CLOUDINARY CONFIGURATION ERROR                          !!!")
+    print(f"!!! Error: {e} !!!")
     print("!!! Please check your CLOUDINARY_URL environment variable on Render.     !!!")
     print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
     import sys
