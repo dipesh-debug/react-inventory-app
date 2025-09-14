@@ -7,16 +7,33 @@ from psycopg2.extras import RealDictCursor
 from flask import Flask, request, jsonify, abort
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
-import cloudinary
-import cloudinary.uploader
-import cloudinary.api
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # --- Configuration ---
 app = Flask(__name__)
 CORS(app)
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 DB_URL = os.environ.get('DB_URL', "postgresql://inventory_user:inventory_password@localhost:5433/inventory_db")
-# Cloudinary is configured automatically by the CLOUDINARY_URL environment variable.
+
+# --- Cloudinary Configuration and Import ---
+# This block validates the Cloudinary URL at startup for easier debugging.
+try:
+    import cloudinary
+    import cloudinary.uploader
+    import cloudinary.api
+    # The import itself triggers the configuration check based on the environment variable.
+    if not os.environ.get('CLOUDINARY_URL'):
+        raise ValueError("CLOUDINARY_URL environment variable not set.")
+except (ImportError, ValueError) as e:
+    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    print("!!! FATAL: CLOUDINARY CONFIGURATION ERROR                            !!!")
+    print(f"!!! Error: {e}")
+    print("!!! Please check your CLOUDINARY_URL environment variable on Render.     !!!")
+    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    import sys
+    sys.exit(1)
 
 # --- Helper Functions ---
 def allowed_file(filename):
@@ -26,12 +43,25 @@ def allowed_file(filename):
 def upload_to_cloudinary(file):
     """Uploads a file to Cloudinary and returns its secure URL."""
     if not file or file.filename == '' or not allowed_file(file.filename):
+        print("--- Upload to Cloudinary skipped: No valid file provided. ---")
         return None
     
-    # The upload method returns a dictionary with upload details
-    upload_result = cloudinary.uploader.upload(file)
-    # We need the secure_url to display the image
-    return upload_result.get('secure_url')
+    try:
+        print("--- Attempting to upload to Cloudinary... ---")
+        upload_result = cloudinary.uploader.upload(file)
+        secure_url = upload_result.get('secure_url')
+        if secure_url:
+            print(f"--- Cloudinary upload successful. URL: {secure_url} ---")
+            return secure_url
+        else:
+            print("---! Cloudinary upload finished but returned no secure_url. Result was: !---")
+            print(upload_result)
+            return None
+    except Exception as e:
+        print("---! Cloudinary upload FAILED with an exception !---")
+        print(e)
+        # Re-raise the exception so the route handler can catch it and return a 500 error
+        raise e
 
 def delete_from_cloudinary(secure_url):
     """Deletes a file from Cloudinary given its secure URL."""
@@ -59,6 +89,12 @@ def get_db_connection():
 def init_db():
     """Initializes the database and creates the table if it doesn't exist."""
     try:
+        # Add a print statement for easier debugging of connection issues.
+        # This will show which database host the app is trying to connect to.
+        db_host = "Unknown"
+        if '@' in DB_URL:
+            db_host = DB_URL.split('@')[-1].split('/')[0]
+        print(f"--- Attempting to connect to database host: {db_host} ---")
         conn = get_db_connection()
         cur = conn.cursor()
         cur.execute('''
@@ -166,15 +202,20 @@ def add_item():
     image_url = None
     if 'image_file' in request.files:
         image_file = request.files['image_file']
+        print(f"--- Received image file for upload: {image_file.filename} ---")
         try:
             image_url = upload_to_cloudinary(image_file)
         except Exception as e:
-            return jsonify({'error': str(e)}), 500
+            print(f"---! Error in add_item during upload: {e} !---")
+            return jsonify({'error': f'Image upload failed: {str(e)}'}), 500
+    else:
+        print("--- No image file found in add_item request. ---")
 
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
+        print(f"--- Attempting to insert into DB with image_url: {image_url} ---")
         # The `image_filename` column now stores the full Cloudinary URL or NULL
         cur.execute(
             'INSERT INTO items (item_code, item_name, rack_no, quantity, description, image_filename) VALUES (%s, %s, %s, %s, %s, %s) RETURNING *',
@@ -223,6 +264,7 @@ def update_item(item_code):
 
     if 'image_file' in request.files:
         image_file = request.files.get('image_file')
+        print(f"--- Received image file for update: {image_file.filename} ---")
         try:
             # Get old image URL to delete it after new one is uploaded
             cur.execute('SELECT image_filename FROM items WHERE item_code = %s', (item_code,))
@@ -231,15 +273,18 @@ def update_item(item_code):
 
             # Upload new image and get its URL from Cloudinary
             new_image_url = upload_to_cloudinary(image_file)
+            print(f"--- Attempting to update DB with new image_url: {new_image_url} ---")
 
             # Update DB with the new URL
             cur.execute('UPDATE items SET image_filename = %s WHERE item_code = %s', (new_image_url, item_code))
 
             # If upload and DB update were successful, delete the old image from Cloudinary
             if old_image_url:
+                print(f"--- Deleting old image from Cloudinary: {old_image_url} ---")
                 delete_from_cloudinary(old_image_url)
         except Exception as e:
             conn.rollback()
+            print(f"---! Error in update_item during upload: {e} !---")
             return jsonify({'error': str(e)}), 500
 
     # Update other fields
